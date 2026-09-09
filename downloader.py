@@ -7,35 +7,18 @@ import yt_dlp
 
 
 ALLOWED_DOMAINS = {
-    # YouTube
-    "youtube.com",
-    "www.youtube.com",
-    "youtu.be",
-    "m.youtube.com",
-    "youtube-nocookie.com",
-    "www.youtube-nocookie.com",
+    "youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com",
+    "youtube-nocookie.com", "www.youtube-nocookie.com",
 
-    # Instagram
-    "instagram.com",
-    "www.instagram.com",
+    "instagram.com", "www.instagram.com",
 
-    # Facebook
-    "facebook.com",
-    "www.facebook.com",
-    "m.facebook.com",
-    "fb.watch",
+    "facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch",
 
-    # X / Twitter
-    "x.com",
-    "www.x.com",
-    "twitter.com",
-    "www.twitter.com",
+    "x.com", "www.x.com", "twitter.com", "www.twitter.com",
 }
 
 
 def is_allowed_url(url: str) -> bool:
-    """Check that URL belongs to a supported platform."""
-
     try:
         parsed = urlparse(url)
 
@@ -47,20 +30,32 @@ def is_allowed_url(url: str) -> bool:
         if not hostname:
             return False
 
-        hostname = hostname.lower().rstrip(".")
+        return hostname.lower().rstrip(".") in ALLOWED_DOMAINS
 
-        return hostname in ALLOWED_DOMAINS
+    except Exception:
+        return False
+
+
+def is_instagram_url(url: str) -> bool:
+    try:
+        hostname = urlparse(url).hostname
+
+        return bool(hostname) and hostname.lower().rstrip(".") in {
+            "instagram.com",
+            "www.instagram.com",
+        }
 
     except Exception:
         return False
 
 
 def detect_media_type(file_path: str) -> str:
-    """Detect whether downloaded file is image, video or document."""
 
-    extension = os.path.splitext(file_path)[1].lower()
+    extension = os.path.splitext(
+        file_path
+    )[1].lower()
 
-    image_extensions = {
+    if extension in {
         ".jpg",
         ".jpeg",
         ".png",
@@ -68,9 +63,10 @@ def detect_media_type(file_path: str) -> str:
         ".gif",
         ".bmp",
         ".avif",
-    }
+    }:
+        return "image"
 
-    video_extensions = {
+    if extension in {
         ".mp4",
         ".mkv",
         ".webm",
@@ -78,41 +74,35 @@ def detect_media_type(file_path: str) -> str:
         ".avi",
         ".m4v",
         ".flv",
-    }
-
-    if extension in image_extensions:
-        return "image"
-
-    if extension in video_extensions:
+    }:
         return "video"
 
     return "document"
 
 
 def get_downloaded_files(temp_dir: str):
-    """Return actual downloaded media files."""
 
     files = []
 
-    if not os.path.exists(temp_dir):
-        return files
+    ignored_extensions = {
+        ".part",
+        ".ytdl",
+        ".temp",
+        ".json",
+        ".description",
+        ".vtt",
+        ".srt",
+        ".ass",
+        ".lrc",
+    }
 
     for root, _, filenames in os.walk(temp_dir):
 
         for filename in filenames:
 
-            # Ignore temporary / metadata files
-            if filename.endswith(
-                (
-                    ".part",
-                    ".ytdl",
-                    ".temp",
-                    ".json",
-                    ".description",
-                    ".vtt",
-                    ".srt",
-                    ".ass",
-                )
+            if (
+                os.path.splitext(filename)[1].lower()
+                in ignored_extensions
             ):
                 continue
 
@@ -127,15 +117,90 @@ def get_downloaded_files(temp_dir: str):
     return files
 
 
-def download_media(url: str):
-    """
-    Download public media from supported platforms.
+def _create_cookie_file(temp_dir: str):
 
-    Returns:
-        file_path,
-        media_type,
-        temp_dir
-    """
+    cookie_data = os.getenv(
+        "INSTAGRAM_COOKIES",
+        ""
+    ).strip()
+
+    if not cookie_data:
+        return None
+
+    cookie_file = os.path.join(
+        temp_dir,
+        "instagram_cookies.txt"
+    )
+
+    with open(
+        cookie_file,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        file.write(cookie_data)
+
+    return cookie_file
+
+
+def _build_options(
+    output_template: str,
+    cookie_file
+):
+
+    options = {
+
+        "format":
+            "bv*+ba/b/best[ext=mp4]/best",
+
+        "outtmpl":
+            output_template,
+
+        "noplaylist":
+            True,
+
+        "merge_output_format":
+            "mp4",
+
+        "quiet":
+            True,
+
+        "no_warnings":
+            True,
+
+        "restrictfilenames":
+            True,
+
+        "writethumbnail":
+            False,
+
+        "writeinfojson":
+            False,
+
+        "writesubtitles":
+            False,
+
+        "writeautomaticsub":
+            False,
+
+        "socket_timeout":
+            30,
+
+        "retries":
+            3,
+
+        "fragment_retries":
+            3,
+    }
+
+    if cookie_file:
+
+        options["cookiefile"] = cookie_file
+
+    return options
+
+
+def download_media(url: str):
 
     if not is_allowed_url(url):
 
@@ -153,68 +218,34 @@ def download_media(url: str):
         "%(title).80s_%(id)s.%(ext)s"
     )
 
-    options = {
-        # Best available quality.
-        # If separate video/audio streams are available,
-        # yt-dlp will try to merge them.
-        "format": (
-            "bv*+ba/"
-            "b/"
-            "best[ext=mp4]/"
-            "best"
-        ),
-
-        "outtmpl": output_template,
-
-        # Don't download playlists.
-        "noplaylist": True,
-
-        # Merge into MP4 when possible.
-        "merge_output_format": "mp4",
-
-        # Don't print huge logs.
-        "quiet": True,
-        "no_warnings": True,
-
-        # Better filenames for Linux/Render.
-        "restrictfilenames": True,
-
-        # Avoid unnecessary files.
-        "writethumbnail": False,
-        "writeinfojson": False,
-        "writesubtitles": False,
-        "writeautomaticsub": False,
-
-        # Network settings.
-        "socket_timeout": 30,
-        "retries": 3,
-        "fragment_retries": 3,
-
-        # Continue even if a particular format fails.
-        "ignoreerrors": False,
-    }
-
     try:
 
-        with yt_dlp.YoutubeDL(options) as ydl:
+        cookie_file = None
 
-            info = ydl.extract_info(
+        if is_instagram_url(url):
+
+            cookie_file = _create_cookie_file(
+                temp_dir
+            )
+
+        options = _build_options(
+            output_template,
+            cookie_file
+        )
+
+        with yt_dlp.YoutubeDL(
+            options
+        ) as ydl:
+
+            ydl.extract_info(
                 url,
                 download=True
             )
 
-        # Find downloaded files.
         files = get_downloaded_files(
             temp_dir
         )
 
-        if not files:
-
-            raise FileNotFoundError(
-                "Downloaded media file was not found."
-            )
-
-        # Prefer common media files.
         media_files = [
             file
             for file in files
@@ -225,37 +256,33 @@ def download_media(url: str):
         if media_files:
             files = media_files
 
-        # Pick largest file.
+        if not files:
+
+            raise FileNotFoundError(
+                "Downloaded media file was not found."
+            )
+
         file_path = max(
             files,
             key=os.path.getsize
         )
 
-        if not os.path.isfile(file_path):
-
-            raise FileNotFoundError(
-                "Downloaded file does not exist."
-            )
-
-        if os.path.getsize(file_path) <= 0:
+        if os.path.getsize(
+            file_path
+        ) <= 0:
 
             raise ValueError(
                 "Downloaded file is empty."
             )
 
-        media_type = detect_media_type(
-            file_path
-        )
-
         return (
             file_path,
-            media_type,
+            detect_media_type(file_path),
             temp_dir
         )
 
     except Exception:
 
-        # Clean up if downloading fails.
         shutil.rmtree(
             temp_dir,
             ignore_errors=True
