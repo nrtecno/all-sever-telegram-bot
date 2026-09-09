@@ -1,36 +1,53 @@
 import os
 import tempfile
+from urllib.parse import urlparse
+
 import yt_dlp
 
 
-ALLOWED_DOMAINS = (
+ALLOWED_DOMAINS = {
     "youtube.com",
+    "www.youtube.com",
     "youtu.be",
     "youtube-nocookie.com",
+    "www.youtube-nocookie.com",
     "instagram.com",
+    "www.instagram.com",
     "facebook.com",
+    "www.facebook.com",
     "fb.watch",
     "x.com",
+    "www.x.com",
     "twitter.com",
-)
+    "www.twitter.com",
+}
 
 
 def is_allowed_url(url: str) -> bool:
-    url = url.lower()
+    try:
+        hostname = urlparse(url).hostname
 
-    return any(
-        domain in url
-        for domain in ALLOWED_DOMAINS
-    )
+        if not hostname:
+            return False
+
+        hostname = hostname.lower().rstrip(".")
+
+        return hostname in ALLOWED_DOMAINS
+
+    except Exception:
+        return False
 
 
 def download_media(url: str):
     if not is_allowed_url(url):
         raise ValueError(
-            "Only YouTube, Instagram, Facebook and X/Twitter links are supported."
+            "Only YouTube, Instagram, Facebook and X/Twitter "
+            "links are supported."
         )
 
-    temp_dir = tempfile.mkdtemp(prefix="all_saver_")
+    temp_dir = tempfile.mkdtemp(
+        prefix="all_saver_"
+    )
 
     output_template = os.path.join(
         temp_dir,
@@ -47,49 +64,61 @@ def download_media(url: str):
         "restrictfilenames": True,
     }
 
-    with yt_dlp.YoutubeDL(options) as ydl:
-        info = ydl.extract_info(
-            url,
-            download=True
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(
+                url,
+                download=True
+            )
+
+        files = []
+
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(
+                temp_dir,
+                filename
+            )
+
+            if os.path.isfile(file_path):
+                files.append(file_path)
+
+        if not files:
+            raise FileNotFoundError(
+                "Downloaded file was not found."
+            )
+
+        file_path = max(
+            files,
+            key=os.path.getsize
         )
 
-        requested = info.get("requested_downloads") or []
+        extension = os.path.splitext(
+            file_path
+        )[1].lower()
 
-        if requested:
-            extensions = [
-                item.get("ext")
-                for item in requested
-                if item.get("ext")
-            ]
+        if extension in (
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".gif",
+        ):
+            media_type = "image"
+
+        elif extension in (
+            ".mp4",
+            ".mkv",
+            ".webm",
+            ".mov",
+            ".avi",
+        ):
+            media_type = "video"
+
         else:
-            extensions = [info.get("ext")]
+            media_type = "document"
 
-    files = [
-        os.path.join(temp_dir, filename)
-        for filename in os.listdir(temp_dir)
-    ]
+        return file_path, media_type, temp_dir
 
-    files = [
-        file
-        for file in files
-        if os.path.isfile(file)
-    ]
-
-    if not files:
-        raise FileNotFoundError(
-            "Downloaded file was not found."
-        )
-
-    file_path = max(
-        files,
-        key=os.path.getsize
-    )
-
-    media_type = "video"
-
-    if file_path.lower().endswith(
-        (".jpg", ".jpeg", ".png", ".webp")
-    ):
-        media_type = "image"
-
-    return file_path, media_type
+    except Exception:
+        # Caller will remove temp_dir.
+        raise
