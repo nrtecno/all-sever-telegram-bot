@@ -1,14 +1,36 @@
 import os
 
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+SECRET_DIR = "/etc/secrets"
 
-CHANNEL_USERNAME = os.getenv(
+
+def read_secret(name, default=None):
+    path = os.path.join(SECRET_DIR, name)
+
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as file:
+            value = file.read().strip()
+
+        if value:
+            return value
+
+    # Fallback: normal Render Environment Variables
+    value = os.getenv(name)
+
+    if value:
+        return value.strip()
+
+    return default
+
+
+BOT_TOKEN = read_secret("BOT_TOKEN")
+
+CHANNEL_USERNAME = read_secret(
     "CHANNEL_USERNAME",
     "@nrtecno2"
 )
 
-CHANNEL_URL = os.getenv(
+CHANNEL_URL = read_secret(
     "CHANNEL_URL",
     "https://t.me/nrtecno2"
 )
@@ -16,5 +38,5 @@ CHANNEL_URL = os.getenv(
 
 if not BOT_TOKEN:
     raise RuntimeError(
-        "BOT_TOKEN environment variable is not set."
+        "BOT_TOKEN secret is not set."
     )
