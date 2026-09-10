@@ -27,12 +27,12 @@ BOT_TOKEN = read_secret("BOT_TOKEN")
 
 CHANNEL_USERNAME = read_secret(
     "CHANNEL_USERNAME",
-    "@nrtecno2"
+    "@nr_hackz"
 )
 
 CHANNEL_URL = read_secret(
     "CHANNEL_URL",
-    "https://t.me/nrtecno2"
+    "https://t.me/nr_hackz"
 )
 
 
