@@ -27,5 +27,5 @@ Example:
 
 ```env
 BOT_TOKEN=your_bot_token
-CHANNEL_USERNAME=@nrtecno2
-CHANNEL_URL=https://t.me/nrtecno2
+CHANNEL_USERNAME=@nr_hackz
+CHANNEL_URL=https://t.me/nr_hackz
