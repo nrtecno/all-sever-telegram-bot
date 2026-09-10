@@ -8,6 +8,6 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: CHANNEL_USERNAME
-        value: "@nrtecno2"
+        value: "@nr_hackz"
       - key: CHANNEL_URL
-        value: "https://t.me/nrtecno2"
+        value: "https://t.me/nr_hackz"
