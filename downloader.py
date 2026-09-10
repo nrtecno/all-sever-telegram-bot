@@ -7,15 +7,29 @@ import yt_dlp
 
 
 ALLOWED_DOMAINS = {
-    "youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com",
-    "youtube-nocookie.com", "www.youtube-nocookie.com",
+    "youtube.com",
+    "www.youtube.com",
+    "youtu.be",
+    "m.youtube.com",
+    "youtube-nocookie.com",
+    "www.youtube-nocookie.com",
 
-    "instagram.com", "www.instagram.com",
+    "instagram.com",
+    "www.instagram.com",
 
-    "facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch",
+    "facebook.com",
+    "www.facebook.com",
+    "m.facebook.com",
+    "fb.watch",
 
-    "x.com", "www.x.com", "twitter.com", "www.twitter.com",
+    "x.com",
+    "www.x.com",
+    "twitter.com",
+    "www.twitter.com",
 }
+
+
+SECRET_COOKIE_FILE = "/etc/secrets/INSTAGRAM_COOKIES"
 
 
 def is_allowed_url(url: str) -> bool:
@@ -117,8 +131,18 @@ def get_downloaded_files(temp_dir: str):
     return files
 
 
-def _create_cookie_file(temp_dir: str):
+def get_instagram_cookie_file():
 
+    # Preferred: Render Secret File
+    if os.path.isfile(SECRET_COOKIE_FILE):
+
+        if os.path.getsize(
+            SECRET_COOKIE_FILE
+        ) > 0:
+
+            return SECRET_COOKIE_FILE
+
+    # Optional fallback for normal Environment Variable
     cookie_data = os.getenv(
         "INSTAGRAM_COOKIES",
         ""
@@ -127,25 +151,43 @@ def _create_cookie_file(temp_dir: str):
     if not cookie_data:
         return None
 
-    cookie_file = os.path.join(
-        temp_dir,
-        "instagram_cookies.txt"
+    temp_cookie_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=".txt",
+        delete=False
     )
 
-    with open(
-        cookie_file,
-        "w",
-        encoding="utf-8"
-    ) as file:
+    try:
 
-        file.write(cookie_data)
+        temp_cookie_file.write(
+            cookie_data
+        )
 
-    return cookie_file
+        temp_cookie_file.close()
+
+        return temp_cookie_file.name
+
+    except Exception:
+
+        try:
+            temp_cookie_file.close()
+        except Exception:
+            pass
+
+        try:
+            os.unlink(
+                temp_cookie_file.name
+            )
+        except Exception:
+            pass
+
+        raise
 
 
-def _build_options(
+def build_options(
     output_template: str,
-    cookie_file
+    cookie_file=None
 ):
 
     options = {
@@ -194,7 +236,6 @@ def _build_options(
     }
 
     if cookie_file:
-
         options["cookiefile"] = cookie_file
 
     return options
@@ -218,17 +259,25 @@ def download_media(url: str):
         "%(title).80s_%(id)s.%(ext)s"
     )
 
+    temporary_cookie_file = None
+
     try:
 
         cookie_file = None
 
         if is_instagram_url(url):
 
-            cookie_file = _create_cookie_file(
-                temp_dir
-            )
+            cookie_file = get_instagram_cookie_file()
 
-        options = _build_options(
+            # Only temporary env-created cookie files
+            # need to be deleted later.
+            if (
+                cookie_file
+                and cookie_file != SECRET_COOKIE_FILE
+            ):
+                temporary_cookie_file = cookie_file
+
+        options = build_options(
             output_template,
             cookie_file
         )
@@ -289,3 +338,14 @@ def download_media(url: str):
         )
 
         raise
+
+    finally:
+
+        if temporary_cookie_file:
+
+            try:
+                os.unlink(
+                    temporary_cookie_file
+                )
+            except Exception:
+                pass
