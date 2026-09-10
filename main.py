@@ -90,7 +90,7 @@ def send_join_message(chat_id):
         chat_id,
         "🔐 <b>Verification Required</b>\n\n"
         "Bot use karne ke liye pehle hamara "
-        "Telegram channel <b>@nrtecno2</b> join karein.\n\n"
+        "Telegram channel <b>@nr_hackz</b> join karein.\n\n"
         "Channel join karne ke baad "
         "<b>Verify</b> button dabayein.",
         reply_markup=keyboard
